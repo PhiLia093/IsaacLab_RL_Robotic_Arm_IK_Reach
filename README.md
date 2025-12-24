@@ -1,135 +1,45 @@
-# Template for Isaac Lab Projects
+# Isaac Lab Reinforcement Learning: Robotic Arm Reach
+<img width="2686" height="1459" alt="image_2025-12-23_17-38-00" src="https://github.com/user-attachments/assets/fdbe6524-c103-490f-975a-f8522655a361" />
+
+
 
 ## Overview
+This project implements a Reinforcement Learning (RL) environment using NVIDIA Isaac Lab (based on Isaac Sim) to train a 6-DOF Universal Robots arm. The goal is to train a policy using PPO that allows the robot end-effector to track a randomly moving target in 3D space.
 
-This project/repository serves as a template for building projects or extensions based on Isaac Lab.
-It allows you to develop in an isolated environment, outside of the core Isaac Lab repository.
+The project focuses on engineering a robust Markov Decision Process (MDP), designing shaped reward functions for high-precision control, and utilizing parallel simulation for efficient training.
 
-**Key Features:**
+## Tech Stack
+- **Framework:** NVIDIA Isaac Lab, Omniverse
+- **Algorithm:** PPO (Proximal Policy Optimization)
+- **Language:** Python, PyTorch
+- **Physics:** PhysX
 
-- `Isolation` Work outside the core Isaac Lab repository, ensuring that your development efforts remain self-contained.
-- `Flexibility` This template is set up to allow your code to be run as an extension in Omniverse.
+## Key Engineering Features
 
-**Keywords:** extension, template, isaaclab
+### 1. MDP & Environment Design
+- **Modular Architecture:** Utilized Isaac Lab's configuration class system to decouple scene, action, and observation definitions for reusability.
+- **Action Space:** Configured implicit actuators using a PD control scheme with relative target offsets (Delta Control).
+- **Observation Space:** Assembled a multi-modal observation vector including joint positions, velocities, and target error. Integrated Gaussian noise injection to simulate sensor uncertainty and improve Sim-to-Real robustness.
 
-## Installation
+### 2. Custom Reward Engineering
+Designed a composite reward function to optimize for both tracking speed and motion quality:
+- **Coarse Tracking:** Implemented a negative L2-norm distance penalty to guide the robot toward the target area.
+- **Fine-Grained Precision:** Developed a custom Tanh kernel reward function to amplify gradients when the end-effector is close to the target (Sweet Spot), effectively minimizing steady-state error.
+- **Regularization:** Penalized high joint velocities and action rates (jerk) to prevent mechanical oscillation and ensure hardware-safe trajectories.
 
-- Install Isaac Lab by following the [installation guide](https://isaac-sim.github.io/IsaacLab/main/source/setup/installation/index.html).
-  We recommend using the conda or uv installation as it simplifies calling Python scripts from the terminal.
+### 3. Curriculum Learning
+Implemented a dynamic training schedule that linearly increases penalty weights for motion smoothness over time. This allows the agent to explore the state space aggressively in early stages while converging on smooth, stable control policies by the end of training.
 
-- Clone or copy this project/repository separately from the Isaac Lab installation (i.e. outside the `IsaacLab` directory):
+### 4. Massively Parallel Simulation
+Configured the environment to run 2048+ parallel instances on a single GPU using Headless mode. This significantly accelerates data collection, compressing hours of training time into minutes.
 
-- Using a python interpreter that has Isaac Lab installed, install the library in editable mode using:
+## Project Structure
+- `reach_env_cfg.py`: Main environment configuration aggregating scene layout, MDP settings, and simulation parameters (dt, decimation).
+- `ur_gripper.py`: Robot asset configuration defining initial joint states and actuator stiffness/damping (PD gains).
+- `rewards.py`: Custom PyTorch implementations of the L2 and Tanh error calculation logic.
+- `actions.py`: Definitions for the joint position control interface mapping neural net outputs to motor targets.
 
-    ```bash
-    # use 'PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-    python -m pip install -e source/RL_UR10_IK
-
-- Verify that the extension is correctly installed by:
-
-    - Listing the available tasks:
-
-        Note: It the task name changes, it may be necessary to update the search pattern `"Template-"`
-        (in the `scripts/list_envs.py` file) so that it can be listed.
-
-        ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-        python scripts/list_envs.py
-        ```
-
-    - Running a task:
-
-        ```bash
-        # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-        python scripts/<RL_LIBRARY>/train.py --task=<TASK_NAME>
-        ```
-
-    - Running a task with dummy agents:
-
-        These include dummy agents that output zero or random agents. They are useful to ensure that the environments are configured correctly.
-
-        - Zero-action agent
-
-            ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-            python scripts/zero_agent.py --task=<TASK_NAME>
-            ```
-        - Random-action agent
-
-            ```bash
-            # use 'FULL_PATH_TO_isaaclab.sh|bat -p' instead of 'python' if Isaac Lab is not installed in Python venv or conda
-            python scripts/random_agent.py --task=<TASK_NAME>
-            ```
-
-### Set up IDE (Optional)
-
-To setup the IDE, please follow these instructions:
-
-- Run VSCode Tasks, by pressing `Ctrl+Shift+P`, selecting `Tasks: Run Task` and running the `setup_python_env` in the drop down menu.
-  When running this task, you will be prompted to add the absolute path to your Isaac Sim installation.
-
-If everything executes correctly, it should create a file .python.env in the `.vscode` directory.
-The file contains the python paths to all the extensions provided by Isaac Sim and Omniverse.
-This helps in indexing all the python modules for intelligent suggestions while writing code.
-
-### Setup as Omniverse Extension (Optional)
-
-We provide an example UI extension that will load upon enabling your extension defined in `source/RL_UR10_IK/RL_UR10_IK/ui_extension_example.py`.
-
-To enable your extension, follow these steps:
-
-1. **Add the search path of this project/repository** to the extension manager:
-    - Navigate to the extension manager using `Window` -> `Extensions`.
-    - Click on the **Hamburger Icon**, then go to `Settings`.
-    - In the `Extension Search Paths`, enter the absolute path to the `source` directory of this project/repository.
-    - If not already present, in the `Extension Search Paths`, enter the path that leads to Isaac Lab's extension directory directory (`IsaacLab/source`)
-    - Click on the **Hamburger Icon**, then click `Refresh`.
-
-2. **Search and enable your extension**:
-    - Find your extension under the `Third Party` category.
-    - Toggle it to enable your extension.
-
-## Code formatting
-
-We have a pre-commit template to automatically format your code.
-To install pre-commit:
-
+## Usage
+To train the policy:
 ```bash
-pip install pre-commit
-```
-
-Then you can run pre-commit with:
-
-```bash
-pre-commit run --all-files
-```
-
-## Troubleshooting
-
-### Pylance Missing Indexing of Extensions
-
-In some VsCode versions, the indexing of part of the extensions is missing.
-In this case, add the path to your extension in `.vscode/settings.json` under the key `"python.analysis.extraPaths"`.
-
-```json
-{
-    "python.analysis.extraPaths": [
-        "<path-to-ext-repo>/source/RL_UR10_IK"
-    ]
-}
-```
-
-### Pylance Crash
-
-If you encounter a crash in `pylance`, it is probable that too many files are indexed and you run out of memory.
-A possible solution is to exclude some of omniverse packages that are not used in your project.
-To do so, modify `.vscode/settings.json` and comment out packages under the key `"python.analysis.extraPaths"`
-Some examples of packages that can likely be excluded are:
-
-```json
-"<path-to-isaac-sim>/extscache/omni.anim.*"         // Animation packages
-"<path-to-isaac-sim>/extscache/omni.kit.*"          // Kit UI tools
-"<path-to-isaac-sim>/extscache/omni.graph.*"        // Graph UI tools
-"<path-to-isaac-sim>/extscache/omni.services.*"     // Services tools
-...
-```
+python train.py --task=Isaac-Reach-UR-v0 --num_envs=2048 --headless
